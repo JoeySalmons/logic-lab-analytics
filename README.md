@@ -31,6 +31,17 @@ As seen in the frequency histogram above, the simulation revealed a bimodal dist
 ![Weights Configuration](weights.png)
 *Figure 2: The interactive weighting interface for controlling variance.*
 
+## Logic Architecture: How it Works
+
+Unlike simple "raffle" systems, Logic Lab uses a **Ranking & Noise** algorithm to ensure quality control while maintaining variety.
+
+1.  **Scoring:** Every question starts with a Base Weight (50).
+2.  **Modifiers:** The engine applies bonuses/penalties based on attributes (e.g., +10 for 'Easy', -5 for 'Long Text').
+3.  **Variance (Noise Injection):** A random value (0-N) is added to the score to prevent the quiz from being identical every time.
+4.  **Selection:** The pool is sorted by Final Score, and the top N items are selected.
+
+*This approach allows the "Variance" slider to act as a direct control for replayability vs. quality enforcement.*
+
 ## Tech Stack
 *   **Core:** HTML5 / JavaScript (ES6+)
 *   **Data:** JSON
