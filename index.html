@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monte Carlo Quiz Analyzer v9.2</title>
+    <style>
+        :root {
+            --bg: #f0f2f5;
+            --panel: #ffffff;
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --success: #27ae60;
+            --danger: #c0392b;
+            --warning: #f39c12;
+            --text: #333;
+            --border: #ddd;
+            --code-bg: #282c34;
+            --code-text: #abb2bf;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            background: var(--panel);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 20px;
+            max-height: 95vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        h1 { margin: 0; font-size: 1.4rem; color: var(--primary); display: flex; align-items: center; gap: 10px; }
+        h2 { font-size: 0.95rem; border-bottom: 2px solid var(--accent); padding-bottom: 5px; margin: 15px 0 5px 0; color: #555; text-transform: uppercase; letter-spacing: 1px;}
+        
+        .control-group { }
+        label { display: block; font-size: 0.85rem; margin-bottom: 5px; font-weight: 600; color: #666; }
+        input[type="number"], select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; }
+        input[type="file"] { font-size: 0.8rem; width: 100%; }
+        
+        button {
+            width: 100%; padding: 10px;
+            background: var(--accent); color: white;
+            border: none; border-radius: 4px;
+            font-weight: bold; cursor: pointer;
+            transition: all 0.3s; font-size: 0.9rem;
+        }
+        button:hover { background: #2980b9; }
+        button:disabled { background: #ccc; cursor: not-allowed; animation: none; }
+        
+        .btn-green { background: var(--success); }
+        .btn-green:hover { background: #219150; }
+        
+        /* Modified State Animation */
+        .btn-green.modified {
+            background: #e67e22;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(230, 126, 34, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(230, 126, 34, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(230, 126, 34, 0); }
+        }
+
+        .btn-danger { background: #e74c3c; font-size: 0.8rem; margin-top: auto;}
+        .btn-danger:hover { background: #c0392b; }
+        .btn-dark { background: var(--primary); }
+        .btn-dark:hover { background: #1a252f; }
+
+        /* MAIN CONTENT */
+        .results-area {
+            background: var(--panel);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            min-height: 800px;
+        }
+
+        .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 20px; gap: 5px; flex-wrap: wrap;}
+        .tab { padding: 10px 15px; cursor: pointer; color: #777; border-bottom: 3px solid transparent; font-weight: 500; }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: bold; background: #f9f9f9; }
+        .tab:hover { background: #f0f0f0; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* SUMMARY GRIDS */
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: #fafafa; border-left: 4px solid var(--accent); padding: 15px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .stat-val { font-size: 1.8rem; font-weight: bold; color: var(--primary); }
+        .stat-lbl { font-size: 0.85rem; color: #666; }
+
+        /* INTERSECTION MATRIX (Summary) */
+        .overlap-container {
+            display: grid; grid-template-columns: 1fr; gap: 10px; 
+            background: #fafafa; padding: 15px; border-radius: 6px; border: 1px solid #eee; margin-bottom: 20px;
+        }
+        .overlap-row { display: flex; align-items: center; font-size: 0.9rem; }
+        .overlap-label { width: 140px; font-weight: 600; color: #555; }
+        .overlap-bar-bg { flex: 1; height: 24px; background: #eee; border-radius: 4px; position: relative; overflow: hidden; margin: 0 10px;}
+        .overlap-bar { height: 100%; background: var(--primary); display: flex; align-items: center; padding-left: 8px; color: white; font-size: 0.8rem; font-weight: bold; transition: width 0.5s; }
+        .overlap-count { width: 50px; text-align: right; font-weight: bold; color: #444; }
+
+        /* ATTRIBUTE BREAKDOWN */
+        .attr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .attr-col h4 { text-align: center; margin: 0 0 10px 0; color: #555; }
+        .attr-box { background: #f4f4f4; padding: 10px; border-radius: 4px; margin-bottom: 5px; font-size: 0.85rem; display: flex; justify-content: space-between;}
+        .attr-box span:last-child { font-weight: bold; }
+
+        /* WEIGHT TUNING GRID */
+        .weight-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .weight-item { background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px solid #eee; }
+        .weight-item label { font-size: 0.75rem; color: #888; display: block; margin-bottom: 4px;}
+        .weight-item input { font-size: 0.9rem; font-weight: bold; color: var(--primary); border: 1px solid #ddd; width: 100%;}
+        .section-header { font-weight: bold; color: var(--accent); margin-top: 20px; margin-bottom: 10px; display: block; border-bottom: 1px solid #eee; font-size: 0.9rem;}
+
+        /* CHART FILTERS */
+        .chart-filter-controls {
+            background: #f8f9fa; padding: 8px 12px; border: 1px solid #eee; border-radius: 6px;
+            margin-bottom: 15px; display: flex; align-items: center; gap: 15px; font-size: 0.85rem; flex-wrap: wrap;
+        }
+        .chart-filter-controls label { font-weight: normal; margin-bottom: 0; display:flex; align-items:center; gap:5px;}
+        .chart-filter-controls .divider { border-left: 1px solid #ddd; padding-left: 15px; margin-left: 5px;}
+
+        /* CHARTS */
+        .chart-container {
+            width: 100%; height: 260px; 
+            background: #fafafa; border: 1px solid #eee;
+            margin-bottom: 20px; position: relative;
+            display: flex; align-items: flex-end; justify-content: space-around;
+            padding: 25px 10px 30px 10px; border-radius: 6px;
+        }
+        .chart-bar { background: var(--accent); width: 100%; margin: 0 2px; transition: height 0.5s; position: relative; display: flex; flex-direction: column-reverse; }
+        .chart-bar:hover { filter: brightness(0.9); }
+        .chart-bar::after { 
+            content: attr(data-val); position: absolute; bottom: 105%; left: 50%; transform: translateX(-50%);
+            font-size: 10px; color: #555; display: none; white-space: nowrap; z-index: 20; background: white; padding: 2px 4px; border: 1px solid #ccc; border-radius: 3px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-bar:hover::after { display: block; }
+        .chart-label { position: absolute; top: 5px; left: 5px; font-size: 0.8rem; color: #999; font-weight: bold; width: 100%;}
+        
+        .ideal-line {
+            position: absolute; left: 0; width: 100%; border-top: 2px dashed #e74c3c;
+            z-index: 5; pointer-events: none; opacity: 0.7;
+        }
+        .ideal-label {
+            position: absolute; right: 5px; top: -18px; color: #e74c3c; font-size: 0.7rem; font-weight: bold; background: rgba(255,255,255,0.8); padding: 0 4px;
+        }
+
+        /* TABLES & TOOLTIPS */
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eee; }
+        th { background: #f1f3f5; color: #444; position: sticky; top: 0; z-index: 10; }
+        .table-scroll { max-height: 500px; overflow-y: auto; border: 1px solid #eee; }
+
+        /* WEIGHT INSPECTOR TOOLTIP */
+        .tooltip-row { position: relative; }
+        .tooltip-row:hover td { background-color: #f1f8ff; cursor: help; }
+        .tooltip-row:hover::after {
+            content: attr(data-breakdown);
+            position: absolute;
+            left: 50px;
+            top: 100%;
+            transform: translateY(-5px);
+            background: #333;
+            color: #fff;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            white-space: pre-wrap;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            min-width: 200px;
+            pointer-events: none;
+            line-height: 1.4;
+            font-family: monospace;
+        }
+
+        .bar-bg { width: 60px; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 5px; }
+        .bar-fill { height: 100%; background: var(--accent); }
+        
+        .tag { padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; color: white; display: inline-block; margin-right: 4px; }
+        .tag.easy { background: var(--success); }
+        .tag.medium { background: var(--warning); }
+        .tag.hard { background: var(--danger); }
+        .tag.quote { background: #8e44ad; }
+        .tag.trivia { background: var(--accent); }
+        .tag.song { background: #e91e63; }
+        
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; background: #eee; font-size: 0.75rem; margin-bottom: 10px; width: 100%; text-align: center;}
+        .status-badge.loaded { background: #d4edda; color: #155724; }
+        .status-badge.error { background: #f8d7da; color: #721c24; }
+
+        /* MODAL */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 800px; height: 80vh; display: flex; flex-direction: column; }
+        textarea { flex: 1; background: var(--code-bg); color: var(--code-text); padding: 15px; font-family: monospace; border-radius: 4px; resize: none; border: none; }
+        .modal-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .close-modal { cursor: pointer; font-size: 1.5rem; }
+        
+        /* Sanity Check List */
+        .sanity-list { overflow-y: auto; flex: 1; border: 1px solid #eee; padding: 10px; margin-top: 10px; font-size: 0.9rem; }
+        .sanity-item { padding: 8px; border-bottom: 1px solid #eee; display: flex; gap: 10px; }
+        .sanity-item.err { background: #fff5f5; color: #c0392b; }
+        .sanity-item.warn { background: #fffbf2; color: #f39c12; }
+        .sanity-item.ok { background: #f0fff4; color: #27ae60; }
+
+        /* Pool Breakdown Pie Chart */
+        .pool-stats-container {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 6px;
+            border: 1px solid #eee;
+            margin-bottom: 20px;
+        }
+
+        .pie-wrapper {
+            position: relative;
+            width: 100px;
+            height: 100px;
+        }
+
+        .pie-chart {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 1px #ddd;
+        }
+
+        .legend-box { flex: 1; }
+        .legend-item { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; margin-bottom: 6px; border-bottom: 1px solid #f5f5f5; padding-bottom: 4px; }
+        .legend-label { display: flex; align-items: center; }
+        .legend-color { width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
+        .legend-val { font-weight: bold; color: #444; }
+
+        /* --- PLAYGROUND STYLES --- */
+        .playground-area {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px dashed #ddd;
+        }
+
+        .play-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            background: #eaf2f8;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .range-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .range-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .range-val {
+            color: var(--accent);
+        }
+
+        .play-results {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .play-card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+            .play-card h4 {
+                margin-top: 0;
+                padding-bottom: 10px;
+                border-bottom: 1px solid #eee;
+                display: flex;
+                justify-content: space-between;
+            }
+
+        .math-row {
+            display: flex;
+            justify-content: space-between;
+            font-family: monospace;
+            font-size: 0.9rem;
+            padding: 4px 0;
+            border-bottom: 1px dashed #f0f0f0;
+        }
+
+            .math-row:last-child {
+                border-bottom: none;
+            }
+
+            .math-row span:first-child {
+                color: #666;
+            }
+
+            .math-row.total-row {
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 2px solid #eee;
+                font-weight: bold;
+                font-size: 1.1rem;
+                color: var(--primary);
+            }
+
+        .math-val {
+            font-weight: bold;
+        }
+
+            .math-val.pos {
+                color: var(--success);
+            }
+
+            .math-val.neg {
+                color: var(--danger);
+            }
+
+        .math-note {
+            font-size: 0.75rem;
+            color: #999;
+            font-style: italic;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .play-results {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <h1>🧪 Logic Lab v9.2</h1>
+
+            <div id="data-status" class="status-badge">No Data Loaded</div>
+
+            <div class="control-group">
+                <label>1. Questions (data.json)</label>
+                <input type="file" id="file-json" accept=".json">
+            </div>
+
+            <div class="control-group">
+                <label>2. Logic Config (logic.json)</label> <!-- Changed Label -->
+                <input type="file" id="file-logic" accept=".json"> <!-- Changed ID and Accept -->
+                <!-- Removed the old HTML import button, logic is now auto-loaded on file select -->
+            </div>
+
+            <div class="control-group">
+                <label>3. Sim Settings</label>
+                <label style="font-weight: normal;">Deck Size</label>
+                <input type="number" id="cfg-decksize" value="10" min="1">
+                <label style="font-weight: normal; margin-top:5px;">Simulations</label>
+                <input type="number" id="cfg-iterations" value="200" min="10" max="5000">
+            </div>
+
+            <button id="btn-run" class="btn-green" disabled>▶ Run Simulation</button>
+
+            <h2>Export Logic</h2>
+            <button id="btn-export-json" class="btn-dark">💾 Save logic_config.json</button>
+
+            <button id="btn-clear" class="btn-danger">Clear Saved Data</button>
+        </div>
+
+        <!-- RESULTS AREA -->
+        <div class="results-area">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('summary')">📊 Summary</div>
+                <div class="tab" onclick="switchTab('weights')">⚙️ Weights</div>
+                <div class="tab" onclick="switchTab('easy')">Easy Results</div>
+                <div class="tab" onclick="switchTab('medium')">Medium Results</div>
+                <div class="tab" onclick="switchTab('hard')">Hard Results</div>
+                <div class="tab" onclick="switchTab('characters')">👤 Characters</div>
+                <div class="tab" onclick="switchTab('ghosts')">❄️ Cold Storage</div>
+            </div>
+
+            <!-- TAB: SUMMARY -->
+            <div id="content-summary" class="tab-content active">
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <div class="stat-val" id="sum-total">0</div>
+                        <div class="stat-lbl">Total Questions</div>
+                    </div>
+                    <div class="stat-card" style="border-color: #666;">
+                        <div class="stat-val" id="sum-pool-coverage">0%</div>
+                        <div class="stat-lbl">Global Pool Coverage</div>
+                    </div>
+                </div>
+
+                <h3 style="margin-bottom:10px; color:#555;">Source Pool Composition</h3>
+                <div id="pool-breakdown-container">
+                    <div style="text-align:center; color:#999; padding:20px; background:#fafafa;">Load JSON to see breakdown</div>
+                </div>
+
+                <h3 style="margin-bottom:10px; color:#555;">Difficulty Overlap (Intersection)</h3>
+                <div class="overlap-container" id="overlap-container">
+                    <div style="text-align:center; color:#999; padding:20px;">Run simulation to see overlap data</div>
+                </div>
+
+                <h3 style="margin-bottom:10px; color:#555;">Attribute Composition (Actual vs Pool)</h3>
+                <div class="attr-grid" id="attr-breakdown"></div>
+            </div>
+
+            <!-- TAB: WEIGHT TUNING -->
+            <div id="content-weights" class="tab-content">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 style="margin-top:0">Ratio & Wildcards</h2>
+                    <button onclick="resetDefaults()" style="width: auto; padding: 5px 10px; font-size: 0.8rem; background: #777;">Reset Defaults</button>
+                </div>
+
+                <div class="weight-grid">
+                    <div class="weight-item"><label>Easy Trivia %</label><input type="number" id="w-ratio-easy" value="0.15" step="0.05"></div>
+                    <div class="weight-item"><label>Medium Trivia %</label><input type="number" id="w-ratio-med" value="0.3" step="0.05"></div>
+                    <div class="weight-item"><label>Hard Trivia %</label><input type="number" id="w-ratio-hard" value="0.5" step="0.05"></div>
+                    <div class="weight-item" style="border-color: var(--accent); background: #eaf2f8;"><label>Wildcard %</label><input type="number" id="w-wildcard" value="0.1" step="0.05"></div>
+                </div>
+
+                <div class="section-header">Variance (Random Noise)</div>
+                <div class="weight-grid">
+                    <div class="weight-item"><label>Base Weight</label><input type="number" id="w-base" value="50"></div>
+                    <div class="weight-item"><label>Easy Variance</label><input type="number" id="w-var-easy" value="50"></div>
+                    <div class="weight-item"><label>Medium Variance</label><input type="number" id="w-var-med" value="80"></div>
+                    <div class="weight-item"><label>Hard Variance</label><input type="number" id="w-var-hard" value="500"></div>
+                </div>
+
+                <div class="section-header">Easy Mode Modifiers</div>
+                <div class="weight-grid">
+                    <div class="weight-item"><label>Song Bonus</label><input type="number" id="w-easy-song" value="50"></div>
+                    <div class="weight-item"><label>Tagged 'Easy'</label><input type="number" id="w-easy-tag" value="100"></div>
+                    <div class="weight-item"><label>Len Divisor (/4)</label><input type="number" id="w-easy-len-div" value="4"></div>
+                    <div class="weight-item"><label>Len Cap (Max 25)</label><input type="number" id="w-easy-len-cap" value="25"></div>
+                    <div class="weight-item"><label>Freq Multiplier (*3)</label><input type="number" id="w-easy-freq-mult" value="3"></div>
+                    <div class="weight-item"><label>Freq Cap (Max 30)</label><input type="number" id="w-easy-freq-cap" value="30"></div>
+                </div>
+
+                <div class="section-header">Hard Mode Modifiers</div>
+                <div class="weight-grid">
+                    <div class="weight-item"><label>Song Penalty</label><input type="number" id="w-hard-song" value="-40"></div>
+                    <div class="weight-item"><label>Tagged 'Hard'</label><input type="number" id="w-hard-tag" value="100"></div>
+                    <div class="weight-item"><label>Easy Tag Penalty</label><input type="number" id="w-hard-easy-pen" value="-30"></div>
+                    <div class="weight-item"><label>Len Threshold (60)</label><input type="number" id="w-hard-len-thresh" value="60"></div>
+                    <div class="weight-item"><label>Len Divisor (/2)</label><input type="number" id="w-hard-len-div" value="2"></div>
+                    <div class="weight-item"><label>Freq Threshold (4)</label><input type="number" id="w-hard-freq-thresh" value="4"></div>
+                    <div class="weight-item"><label>Freq Multiplier (*5)</label><input type="number" id="w-hard-freq-mult" value="5"></div>
+                </div>
+
+                <div class="section-header">Medium Mode Modifiers</div>
+                <div class="weight-grid">
+                    <div class="weight-item"><label>Tagged 'Medium'</label><input type="number" id="w-med-tag" value="20"></div>
+                </div>
+
+                <!-- NEW PLAYGROUND SECTION -->
+                <div class="playground-area">
+                    <h3 style="margin-top:0; color:var(--primary);">🧪 Scoring Playground (Simulation)</h3>
+                    <p style="font-size:0.85rem; color:#666; margin-bottom:15px;">Adjust the inputs below to see how the equations above calculate weight for a single item.</p>
+
+                    <div class="play-controls">
+                        <div class="range-wrap">
+                            <div class="range-header"><span>Content Length</span> <span id="val-play-len" class="range-val">50 chars</span></div>
+                            <input type="range" id="play-len" min="1" max="200" value="50">
+                        </div>
+                        <div class="range-wrap">
+                            <div class="range-header"><span>Answer Frequency</span> <span id="val-play-freq" class="range-val">5 times</span></div>
+                            <input type="range" id="play-freq" min="0" max="50" value="5">
+                        </div>
+                        <div class="range-wrap">
+                            <div class="range-header"><span>Item Type</span></div>
+                            <select id="play-type">
+                                <option value="quote">Quote (Uses Length)</option>
+                                <option value="trivia">Trivia (Ignores Length)</option>
+                                <option value="song">Song (Static Bonus)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="play-results">
+                        <!-- EASY CARD -->
+                        <div class="play-card" style="border-left: 4px solid var(--success)">
+                            <h4>Easy Mode Score</h4>
+                            <div id="play-calc-easy"></div>
+                        </div>
+
+                        <!-- HARD CARD -->
+                        <div class="play-card" style="border-left: 4px solid var(--danger)">
+                            <h4>Hard Mode Score</h4>
+                            <div id="play-calc-hard"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RESULT TABS -->
+            <div id="content-easy" class="tab-content">
+                <div class="chart-filter-controls">
+                    <label><input type="checkbox" id="filter-easy-trivia" onchange="updateFilteredChart('easy')" checked> Trivia</label>
+                    <label><input type="checkbox" id="filter-easy-quote" onchange="updateFilteredChart('easy')" checked> Quote</label>
+                    <label><input type="checkbox" id="filter-easy-song" onchange="updateFilteredChart('easy')" checked> Song</label>
+                    <label class="divider"><input type="checkbox" id="stacked-view-easy" onchange="updateFilteredChart('easy')"> Stacked View</label>
+                </div>
+                <div class="chart-container" id="chart-easy"></div>
+                <div class="table-scroll" id="table-easy"></div>
+            </div>
+            <div id="content-medium" class="tab-content">
+                <div class="chart-filter-controls">
+                    <label><input type="checkbox" id="filter-medium-trivia" onchange="updateFilteredChart('medium')" checked> Trivia</label>
+                    <label><input type="checkbox" id="filter-medium-quote" onchange="updateFilteredChart('medium')" checked> Quote</label>
+                    <label><input type="checkbox" id="filter-medium-song" onchange="updateFilteredChart('medium')" checked> Song</label>
+                    <label class="divider"><input type="checkbox" id="stacked-view-medium" onchange="updateFilteredChart('medium')"> Stacked View</label>
+                </div>
+                <div class="chart-container" id="chart-medium"></div>
+                <div class="table-scroll" id="table-medium"></div>
+            </div>
+            <div id="content-hard" class="tab-content">
+                <div class="chart-filter-controls">
+                    <label><input type="checkbox" id="filter-hard-trivia" onchange="updateFilteredChart('hard')" checked> Trivia</label>
+                    <label><input type="checkbox" id="filter-hard-quote" onchange="updateFilteredChart('hard')" checked> Quote</label>
+                    <label><input type="checkbox" id="filter-hard-song" onchange="updateFilteredChart('hard')" checked> Song</label>
+                    <label class="divider"><input type="checkbox" id="stacked-view-hard" onchange="updateFilteredChart('hard')"> Stacked View</label>
+                </div>
+                <div class="chart-container" id="chart-hard"></div>
+                <div class="table-scroll" id="table-hard"></div>
+            </div>
+
+            <!-- CHARACTER ANALYSIS TAB -->
+            <div id="content-characters" class="tab-content">
+                <div class="chart-filter-controls">
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <strong>Filter:</strong>
+                        <label><input type="checkbox" id="char-diff-easy" onchange="updateCharacterTab()" checked> Easy</label>
+                        <label><input type="checkbox" id="char-diff-med" onchange="updateCharacterTab()" checked> Medium</label>
+                        <label><input type="checkbox" id="char-diff-hard" onchange="updateCharacterTab()" checked> Hard</label>
+                    </div>
+                    <div class="divider"></div>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <label><input type="checkbox" id="char-type-trivia" onchange="updateCharacterTab()" checked> Trivia</label>
+                        <label><input type="checkbox" id="char-type-quote" onchange="updateCharacterTab()" checked> Quote</label>
+                        <label><input type="checkbox" id="char-type-song" onchange="updateCharacterTab()" checked> Song</label>
+                    </div>
+                    <div class="divider"></div>
+                    <label>Top <input type="number" id="char-top-n" value="20" min="5" max="100" style="width:60px; margin:0 5px;" onchange="updateCharacterTab()"> Characters</label>
+                </div>
+                <div class="chart-container" id="chart-characters"></div>
+                <div class="table-scroll" id="table-characters"></div>
+            </div>
+
+            <!-- COLD STORAGE -->
+            <div id="content-ghosts" class="tab-content">
+                <div style="background: #eaf2f8; padding: 15px; border-radius: 6px; margin-bottom: 20px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                    <div>
+                        <label style="margin:0; font-size: 0.8rem;">Show items appearing ≤ </label>
+                        <input type="number" id="ghost-threshold" value="0" min="0" max="100" style="width: 70px;">
+                        <span style="font-size: 0.85rem; color: #555;">times</span>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center; border-left: 1px solid #ddd; padding-left: 15px;">
+                        <label style="margin:0; font-size: 0.8rem;">In difficulties:</label>
+                        <label style="font-weight: normal; font-size: 0.85rem;"><input type="checkbox" id="ghost-diff-easy" onchange="updateColdStorage()" checked> Easy</label>
+                        <label style="font-weight: normal; font-size: 0.85rem;"><input type="checkbox" id="ghost-diff-medium" onchange="updateColdStorage()" checked> Medium</label>
+                        <label style="font-weight: normal; font-size: 0.85rem;"><input type="checkbox" id="ghost-diff-hard" onchange="updateColdStorage()" checked> Hard</label>
+                    </div>
+                    <button onclick="updateColdStorage()" style="width: auto; padding: 6px 12px; margin-left: auto;">Update List</button>
+                </div>
+                <div id="table-ghosts" class="table-scroll"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SANITY CHECK MODAL -->
+    <div id="sanity-modal" class="modal">
+        <div class="modal-content" style="height: 60vh;">
+            <div class="modal-header">
+                <h3 style="margin:0;">Data Sanity Check</h3>
+                <span class="close-modal" onclick="closeModal('sanity-modal')">&times;</span>
+            </div>
+            <div style="font-size: 0.9rem; color:#666; margin-bottom: 10px;">
+                A quick scan of your JSON file reveals the following potential issues:
+            </div>
+            <div class="sanity-list" id="sanity-results"></div>
+            <div style="margin-top: 10px; text-align: right;">
+                <button onclick="closeModal('sanity-modal')" style="width: auto;">Acknowledge</button>
+            </div>
+        </div>
+    </div>
+
+
+<script>
+        // --- STATE ---
+        let quizData = [];
+        let rarityMap = {};
+        let simulationStats = null;
+        let weightsModified = false;
+        
+        // --- ELEMENTS ---
+        const els = {
+            json: document.getElementById('file-json'),
+            btnRun: document.getElementById('btn-run'),
+            btnClear: document.getElementById('btn-clear'),
+            status: document.getElementById('data-status'),
+            deckSize: document.getElementById('cfg-decksize'),
+            iterations: document.getElementById('cfg-iterations'),
+            ghostThresh: document.getElementById('ghost-threshold'),
+            logicInput: document.getElementById('file-logic'),       // New in v9
+            btnExport: document.getElementById('btn-export-json')    // New in v9
+        };
+
+        const weightInputs = {
+            ratioEasy: document.getElementById('w-ratio-easy'),
+            ratioMed: document.getElementById('w-ratio-med'),
+            ratioHard: document.getElementById('w-ratio-hard'),
+            wildcard: document.getElementById('w-wildcard'),
+            base: document.getElementById('w-base'),
+            varEasy: document.getElementById('w-var-easy'),
+            varMed: document.getElementById('w-var-med'),
+            varHard: document.getElementById('w-var-hard'),
+            easySong: document.getElementById('w-easy-song'),
+            easyTag: document.getElementById('w-easy-tag'),
+            easyLenDiv: document.getElementById('w-easy-len-div'),
+            easyLenCap: document.getElementById('w-easy-len-cap'),
+            easyFreqMult: document.getElementById('w-easy-freq-mult'),
+            easyFreqCap: document.getElementById('w-easy-freq-cap'),
+            hardSong: document.getElementById('w-hard-song'),
+            hardTag: document.getElementById('w-hard-tag'),
+            hardEasyPen: document.getElementById('w-hard-easy-pen'),
+            hardLenThresh: document.getElementById('w-hard-len-thresh'),
+            hardLenDiv: document.getElementById('w-hard-len-div'),
+            hardFreqThresh: document.getElementById('w-hard-freq-thresh'),
+            hardFreqMult: document.getElementById('w-hard-freq-mult'),
+            medTag: document.getElementById('w-med-tag')
+        };
+
+        // --- INIT & EVENTS ---
+        window.addEventListener('DOMContentLoaded', loadFromStorage);
+        els.json.addEventListener('change', (e) => handleJson(e.target.files[0]));
+        
+        els.logicInput.addEventListener('change', (e) => handleLogicJson(e.target.files[0])); // New v9 handler
+        els.logicInput.addEventListener('click', (e) => e.target.value = null);
+        els.btnExport.addEventListener('click', exportLogicJson);
+        els.btnClear.addEventListener('click', clearStorage);
+        
+        ['play-len', 'play-freq', 'play-type'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updatePlayground);
+        });
+        
+        // Watch for weight changes
+        Object.values(weightInputs).forEach(input => {
+            input.addEventListener('input', () => {
+                weightsModified = true;
+                updateRunButton();
+                updatePlayground();
+            });
+        });
+        
+        // Initial call
+        updatePlayground();
+        
+        function updateRunButton() {
+            if(weightsModified && quizData.length > 0) {
+                els.btnRun.innerText = "▶ Re-run Analysis";
+                els.btnRun.classList.add('modified');
+            } else {
+                els.btnRun.innerText = "▶ Run Simulation";
+                els.btnRun.classList.remove('modified');
+            }
+        }
+
+        // --- DATA LOADING & SANITY ---
+        function handleJson(file) {
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if(Array.isArray(parsed)) {
+                        quizData = parsed;
+                        localStorage.setItem('quizData', JSON.stringify(quizData));
+                        
+                        // FIX 3: Run Sanity Check FIRST, then update status
+                        performSanityCheck(quizData);
+                        updateStatus();
+                    } else { alert("JSON must be an array."); }
+                } catch(err) { alert("Invalid JSON file."); }
+            };
+            reader.readAsText(file);
+        }
+
+        function performSanityCheck(data) {
+            const list = document.getElementById('sanity-results');
+            list.innerHTML = '';
+            let issues = 0;
+
+            const addIssue = (msg, type='err') => {
+                list.innerHTML += `<div class="sanity-item ${type}"><span>${type==='err'?'❌':'⚠️'}</span><span>${msg}</span></div>`;
+                issues++;
+            };
+
+            // Checks
+            if(data.length === 0) addIssue("Data array is empty.");
+            
+            // Duplicates
+            const contentSet = new Set();
+            let duplicates = 0;
+            data.forEach(q => {
+                if(q.content) {
+                    if(contentSet.has(q.content)) duplicates++;
+                    contentSet.add(q.content);
+                }
+            });
+            if(duplicates > 0) addIssue(`Found ${duplicates} duplicate questions (by content).`);
+
+            // Fields & Types
+            let missingCritical = 0; // content, answer
+            let missingType = 0;     // type
+            let missingDiff = 0;     // difficulty (Warning only)
+            let invalidTypes = 0;
+            let invalidDiff = 0;
+
+            const validTypes = ['song', 'quote', 'trivia'];
+            const validDiff = ['easy', 'medium', 'hard'];
+
+            data.forEach((q, i) => {
+                // 1. Critical Fields (Cannot run without these)
+                if(!q.content || !q.answer) missingCritical++;
+                
+                // 2. Type Field (Needed for pools)
+                if(!q.type) missingType++;
+                else if(!validTypes.includes(q.type)) invalidTypes++;
+
+                // 3. Difficulty Field (Warning only - logic can fall back)
+                if(!q.difficulty) missingDiff++;
+                else if(!validDiff.includes(q.difficulty)) invalidDiff++;
+            });
+
+            if(missingCritical > 0) addIssue(`${missingCritical} questions missing critical fields (content or answer).`);
+            if(missingType > 0) addIssue(`${missingType} questions missing 'type' field.`);
+            if(invalidTypes > 0) addIssue(`${invalidTypes} questions have invalid 'type' (expected: song, quote, trivia).`);
+            
+            if(missingDiff > 0) addIssue(`${missingDiff} questions missing 'difficulty' (will default to Medium weighting).`, 'warn');
+            if(invalidDiff > 0) addIssue(`${invalidDiff} questions have invalid 'difficulty' (expected: easy, medium, hard).`, 'warn');
+
+            if(issues === 0) {
+                addIssue("No obvious data issues found!", "ok");
+            }
+            
+            // Only show modal if issues exist or user explicitly asked?
+            // The logic here shows it every time logic runs.
+            document.getElementById('sanity-modal').style.display = 'flex';
+        }
+
+        // REMOVED handleHtml and btnImport logic (Importing old HTML is deprecated in v9)
+
+        // --- HELPER FUNCTIONS ---
+        function loadFromStorage() {
+            const d = localStorage.getItem('quizData');
+            if(d) { quizData = JSON.parse(d); updateStatus(); }
+        }
+        function clearStorage() { localStorage.clear(); location.reload(); }
+        function updateStatus() {
+            if(quizData.length > 0) {
+                els.status.innerText = `Loaded: ${quizData.length} questions`;
+                els.status.classList.add('loaded');
+                els.btnRun.disabled = false;
+                els.json.style.display = 'none';
+                calculateRarity();
+                document.getElementById('sum-total').innerText = quizData.length;
+                renderPoolStats(); 
+            }
+        }
+        function calculateRarity() {
+            rarityMap = {};
+            quizData.forEach(q => {
+                // FIX 4: Safety check for answer existence
+                if(q.answer) {
+                    const ans = q.answer.trim();
+                    rarityMap[ans] = (rarityMap[ans] || 0) + 1;
+                }
+            });
+        }
+        function getConfig() {
+            let cfg = {};
+            for (const [key, el] of Object.entries(weightInputs)) { cfg[key] = parseFloat(el.value); }
+            return cfg;
+        }
+
+        // --- SIMULATION LOGIC ---
+        els.btnRun.addEventListener('click', runSimulation);
+
+        function calculateWeight(q, difficulty, w, returnBreakdown = false) {
+            let weight = calculateStaticWeightOnly(q, difficulty, w);
+    
+            let breakdown = [];
+            if (returnBreakdown) {
+                breakdown.push(`Base: ${w.base}`);
+            }
+
+            let variance = w.varMed;
+            if(difficulty === 'easy') variance = w.varEasy;
+            if(difficulty === 'hard') variance = w.varHard;
+    
+            if(returnBreakdown) {
+                return { weight, breakdown: generateBreakdownStrings(q, difficulty, w, weight) }; 
+            }
+    
+            return weight + (Math.random() * variance);
+        }
+
+        function generateBreakdownStrings(q, difficulty, w, finalStaticWeight) {
+            return [`Static Weight: ${finalStaticWeight.toFixed(1)}`, `+ Random Variance`];
+        }
+
+        function fisherYatesShuffle(array) {
+            const arr = [...array]; 
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function runSimulation() {
+            if (quizData.length === 0) return;
+            const config = getConfig();
+            const deckSize = parseInt(els.deckSize.value);
+            const iterations = parseInt(els.iterations.value);
+            const difficulties = ['easy', 'medium', 'hard'];
+
+            let stats = { easy: {}, medium: {}, hard: {} };
+            quizData.forEach(q => {
+                difficulties.forEach(d => { stats[d][q.content] = 0; });
+            });
+
+            const precomputed = precomputeSimulationData(config);
+
+            difficulties.forEach(diff => {
+                const dData = precomputed[diff]; 
+                const wildcardCount = Math.ceil(deckSize * config.wildcard);
+                const weightedCount = deckSize - wildcardCount;
+        
+                let triviaPct = config.ratioMed;
+                if (diff === 'easy') triviaPct = config.ratioEasy;
+                if (diff === 'hard') triviaPct = config.ratioHard;
+
+                const targetTrivia = Math.round(weightedCount * triviaPct);
+                const targetQuotes = weightedCount - targetTrivia;
+
+                let variance = config.varMed;
+                if (diff === 'easy') variance = config.varEasy;
+                if (diff === 'hard') variance = config.varHard;
+
+                let currentSimList = new Array(quizData.length); 
+        
+                for (let i = 0; i < iterations; i++) {
+            
+                    const processPool = (pool) => {
+                        return pool.map(p => ({
+                            id: p.id,
+                            w: p.staticW + (Math.random() * variance)
+                        })).sort((a, b) => b.w - a.w);
+                    };
+
+                    const simTrivia = processPool(dData.trivia);
+                    const simQuotes = processPool(dData.quote);
+
+                    let pickedTrivia = simTrivia.slice(0, targetTrivia);
+                    let pickedQuotes = simQuotes.slice(0, targetQuotes);
+
+                    if (pickedTrivia.length < targetTrivia) {
+                        const needed = targetTrivia - pickedTrivia.length;
+                        pickedQuotes = pickedQuotes.concat(simQuotes.slice(targetQuotes, targetQuotes + needed));
+                    }
+                    if (pickedQuotes.length < targetQuotes) {
+                        const needed = targetQuotes - pickedQuotes.length;
+                        pickedTrivia = pickedTrivia.concat(simTrivia.slice(targetTrivia, targetTrivia + needed));
+                    }
+
+                    const winners = new Set();
+                    pickedTrivia.forEach(item => winners.add(item.id));
+                    pickedQuotes.forEach(item => winners.add(item.id));
+
+                    const candidates = [];
+                    const numTotal = quizData.length;
+            
+                    for(let k=0; k<numTotal; k++) {
+                        if(!winners.has(k)) candidates.push(k);
+                    }
+
+                    for (let k = 0; k < wildcardCount && k < candidates.length; k++) {
+                        const r = k + Math.floor(Math.random() * (candidates.length - k));
+                        const temp = candidates[k];
+                        candidates[k] = candidates[r];
+                        candidates[r] = temp;
+                        winners.add(candidates[k]);
+                    }
+
+                    winners.forEach(index => {
+                        const content = quizData[index].content;
+                        stats[diff][content]++;
+                    });
+                }
+            });
+
+            simulationStats = { stats, iterations, deckSize };
+    
+            weightsModified = false;
+            updateRunButton();
+
+            renderSummary(stats, iterations);
+            renderResults(stats, iterations);
+            updateColdStorage();
+            updateCharacterTab();
+            switchTab('summary');
+        }
+
+        function precomputeSimulationData(config) {
+            const difficulties = ['easy', 'medium', 'hard'];
+            const result = {};
+
+            difficulties.forEach(diff => {
+                result[diff] = { trivia: [], quote: [] };
+        
+                quizData.forEach((q, index) => {
+                    if (diff === 'easy' && q.difficulty === 'hard') return;
+                    const staticWeight = calculateStaticWeightOnly(q, diff, config);
+                    const item = { id: index, staticW: staticWeight };
+                    if (q.type === 'quote') {
+                        result[diff].quote.push(item);
+                    } else {
+                        result[diff].trivia.push(item);
+                    }
+                });
+            });
+            return result;
+        }
+
+        function calculateStaticWeightOnly(q, difficulty, w) {
+            let weight = Number(w.base);
+            const len = q.content.length;
+            const isSong = q.type === 'song';
+            // Safety check for map
+            const ansFreq = q.answer ? (rarityMap[q.answer.trim()] || 0) : 0;
+
+            if(difficulty === 'easy') {
+                if(isSong) weight += w.easySong;
+        
+                if(q.type === 'quote') {
+                    weight += Math.min(len / w.easyLenDiv, w.easyLenCap);
+                }
+                weight += Math.min(ansFreq * w.easyFreqMult, w.easyFreqCap);
+                if(q.difficulty === 'easy') weight += w.easyTag;
+
+            } else if(difficulty === 'hard') {
+                if(isSong) weight += -w.hardSong;
+
+                if(q.type === 'quote') {
+                    weight += Math.max(0, (w.hardLenThresh - len) / w.hardLenDiv);
+                }
+                weight += Math.max(0, (w.hardFreqThresh - ansFreq) * w.hardFreqMult);
+
+                if(q.difficulty === 'hard') weight += w.hardTag;
+                if(q.difficulty === 'easy') weight += -w.hardEasyPen;
+
+            } else {
+                if(q.difficulty === 'medium') weight += w.medTag;
+            }
+
+            return weight;
+        }
+        
+        function updatePlayground() {
+            const cfg = getConfig();
+            const len = parseInt(document.getElementById('play-len').value);
+            const freq = parseInt(document.getElementById('play-freq').value);
+            const type = document.getElementById('play-type').value;
+
+            // Update Text Labels
+            document.getElementById('val-play-len').innerText = len + " chars";
+            document.getElementById('val-play-freq').innerText = freq + " times";
+
+            // --- EASY CALC ---
+            let eHtml = `<div class="math-row"><span>Base</span> <span class="math-val">${cfg.base}</span></div>`;
+            let eTotal = cfg.base;
+
+            // Type Logic
+            if(type === 'song') {
+                eTotal += cfg.easySong;
+                eHtml += `<div class="math-row"><span>Song Bonus</span> <span class="math-val pos">+${cfg.easySong}</span></div>`;
+            } else if (type === 'quote') {
+                const rawLen = len / cfg.easyLenDiv;
+                const pts = Math.min(rawLen, cfg.easyLenCap);
+                eTotal += pts;
+                eHtml += `<div class="math-row"><span>Length (${len}/${cfg.easyLenDiv})</span> <span class="math-val pos">+${pts.toFixed(1)}</span></div>`;
+                if(rawLen > cfg.easyLenCap) eHtml += `<div class="math-note">Capped at ${cfg.easyLenCap}</div>`;
+            }
+
+            // Freq Logic
+            const rawFreq = freq * cfg.easyFreqMult;
+            const fPts = Math.min(rawFreq, cfg.easyFreqCap);
+            eTotal += fPts;
+            eHtml += `<div class="math-row"><span>Freq (${freq}*${cfg.easyFreqMult})</span> <span class="math-val pos">+${fPts}</span></div>`;
+            if(rawFreq > cfg.easyFreqCap) eHtml += `<div class="math-note">Capped at ${cfg.easyFreqCap}</div>`;
+
+            eHtml += `<div class="math-row total-row"><span>Total</span> <span>${eTotal.toFixed(1)}</span></div>`;
+            document.getElementById('play-calc-easy').innerHTML = eHtml;
+
+
+            // --- HARD CALC ---
+            let hHtml = `<div class="math-row"><span>Base</span> <span class="math-val">${cfg.base}</span></div>`;
+            let hTotal = cfg.base;
+
+            // Type Logic
+            if(type === 'song') {
+                hTotal -= cfg.hardSong; // Note: input value is usually positive in UI, subtracted in logic
+                // But your current UI input might be negative. Let's respect the visual 'value'.
+                // Looking at your HTML: value="-40". So we add it.
+                hTotal += cfg.hardSong;
+                hHtml += `<div class="math-row"><span>Song Penalty</span> <span class="math-val neg">${cfg.hardSong}</span></div>`;
+            } else if (type === 'quote') {
+                // Logic: max(0, (Thresh - len) / Div)
+                // Shorter than threshold gets points.
+                const rawL = (cfg.hardLenThresh - len) / cfg.hardLenDiv;
+                const pts = Math.max(0, rawL);
+                hTotal += pts;
+                hHtml += `<div class="math-row"><span>Length ((${cfg.hardLenThresh}-${len})/${cfg.hardLenDiv})</span> <span class="math-val ${pts>0?'pos':'neg'}">+${pts.toFixed(1)}</span></div>`;
+                if(len > cfg.hardLenThresh) hHtml += `<div class="math-note">0 pts (Too long for hard bonus)</div>`;
+            }
+
+            // Freq Logic
+            // Logic: max(0, (Thresh - Freq) * Mult)
+            // Rarer than threshold gets points.
+            const rawF = (cfg.hardFreqThresh - freq) * cfg.hardFreqMult;
+            const fPtsH = Math.max(0, rawF);
+            hTotal += fPtsH;
+            hHtml += `<div class="math-row"><span>Freq ((${cfg.hardFreqThresh}-${freq})*${cfg.hardFreqMult})</span> <span class="math-val ${fPtsH>0?'pos':'neg'}">+${fPtsH.toFixed(1)}</span></div>`;
+            if(freq > cfg.hardFreqThresh) hHtml += `<div class="math-note">0 pts (Too common for hard bonus)</div>`;
+
+            hHtml += `<div class="math-row total-row"><span>Total</span> <span>${hTotal.toFixed(1)}</span></div>`;
+            document.getElementById('play-calc-hard').innerHTML = hHtml;
+        }
+
+        // --- RENDERING RESULTS ---
+        function renderResults(stats, iterations) {
+            ['easy', 'medium', 'hard'].forEach(diff => {
+                updateFilteredChart(diff); 
+                
+                const diffStats = stats[diff];
+                const data = [];
+                const config = getConfig();
+
+                Object.keys(diffStats).forEach(key => {
+                    const count = diffStats[key];
+                    const qObj = quizData.find(q => q.content === key);
+                    if(qObj) {
+                        const info = calculateWeight(qObj, diff, config, true);
+                        const breakdownText = info.breakdown.join('\n') + `\n----------------\nNet Weight: ${info.weight.toFixed(1)}\n(+ Random Var)`;
+                        
+                        data.push({ 
+                            ...qObj, 
+                            count, 
+                            pct: (count/iterations*100).toFixed(1),
+                            tooltip: breakdownText
+                        });
+                    }
+                });
+                data.sort((a,b) => b.count - a.count);
+
+                let html = `<table><thead><tr><th width="40%">Question</th><th width="20%">Answer</th><th width="10%">Type</th><th width="10%">Chance</th><th width="20%">Usage (Count)</th></tr></thead><tbody>`;
+                data.forEach(row => {
+                    const barColor = row.count === 0 ? '#ddd' : 'var(--accent)';
+                    html += `<tr class="tooltip-row" data-breakdown="${row.tooltip}">
+                        <td>${row.content}</td>
+                        <td>${row.answer}</td>
+                        <td><span class="tag ${row.type === 'song' ? 'song' : (row.type==='quote'?'quote':'trivia')}">${row.type}</span></td>
+                        <td style="font-weight:bold; color:var(--primary);">${row.pct}%</td>
+                        <td><div class="bar-bg"><div class="bar-fill" style="width:${Math.min(row.pct, 100)}%; background:${barColor}"></div></div> ${row.count}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('table-'+diff).innerHTML = html;
+            });
+        }
+
+        // --- CHARACTER ANALYSIS TAB ---
+        function updateCharacterTab() {
+            if(!simulationStats) return;
+            const { stats } = simulationStats;
+            
+            const diffs = [];
+            if(document.getElementById('char-diff-easy').checked) diffs.push('easy');
+            if(document.getElementById('char-diff-med').checked) diffs.push('medium');
+            if(document.getElementById('char-diff-hard').checked) diffs.push('hard');
+            
+            const types = [];
+            if(document.getElementById('char-type-trivia').checked) types.push('trivia');
+            if(document.getElementById('char-type-quote').checked) types.push('quote');
+            if(document.getElementById('char-type-song').checked) types.push('song');
+
+            const topN = parseInt(document.getElementById('char-top-n').value) || 20;
+
+            const charStats = {}; 
+            
+            quizData.forEach(q => {
+                if(!types.includes(q.type)) return;
+                // Safety check
+                const ans = q.answer ? q.answer.trim() : "UNKNOWN";
+                
+                if(!charStats[ans]) charStats[ans] = { count: 0, poolFreq: rarityMap[ans] || 0 };
+
+                let simTotal = 0;
+                diffs.forEach(d => { simTotal += (stats[d][q.content] || 0); });
+                charStats[ans].count += simTotal;
+            });
+
+            const data = Object.keys(charStats).map(name => ({
+                name, 
+                count: charStats[name].count,
+                poolFreq: charStats[name].poolFreq
+            }));
+
+            data.sort((a,b) => b.count - a.count);
+            renderCharacterChart(data.slice(0, topN));
+
+            let html = `<table><thead><tr><th>Character</th><th>Simulated Count</th><th>Pool Frequency</th><th>Avg Count / Q</th></tr></thead><tbody>`;
+            data.forEach(row => {
+                const avg = row.poolFreq > 0 ? (row.count / row.poolFreq).toFixed(1) : 0;
+                html += `<tr>
+                    <td><strong>${row.name}</strong></td>
+                    <td style="color:var(--accent); font-weight:bold;">${row.count}</td>
+                    <td>${row.poolFreq}</td>
+                    <td>${avg}</td>
+                </tr>`;
+            });
+            html += `</tbody></table>`;
+            document.getElementById('table-characters').innerHTML = html;
+        }
+
+        function renderCharacterChart(data) {
+            const container = document.getElementById('chart-characters');
+            if(data.length === 0) {
+                container.innerHTML = '<div style="margin:auto; color:#999;">No data matches filters</div>';
+                return;
+            }
+            const maxVal = Math.max(...data.map(d => d.count)) || 1;
+            
+            let html = `<div class="chart-label">Top Characters by Appearance</div>`;
+            
+            data.forEach(d => {
+                const height = (d.count / maxVal * 80) + '%';
+                const tip = `${d.name}: ${d.count}`;
+                html += `<div class="chart-bar" style="height:${height}; width:${95/data.length}%; background:#8e44ad;" data-val="${tip}"></div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // --- OTHER RENDERERS (Summary, Charts, etc.) ---
+        function renderSummary(stats, iterations) {
+            const getSet = (diff) => new Set(Object.keys(stats[diff]).filter(k => stats[diff][k] > 0));
+            const setE = getSet('easy');
+            const setM = getSet('medium');
+            const setH = getSet('hard');
+            const totalUsed = new Set([...setE, ...setM, ...setH]);
+            document.getElementById('sum-pool-coverage').innerText = Math.round((totalUsed.size / quizData.length) * 100) + '%';
+            
+            const overlapContainer = document.getElementById('overlap-container');
+            const intersect = (s1, s2) => new Set([...s1].filter(x => s2.has(x)));
+            const subtract = (s1, s2) => new Set([...s1].filter(x => !s2.has(x)));
+            const allThree = intersect(intersect(setE, setM), setH);
+            const onlyEasy = subtract(subtract(setE, setM), setH);
+            const onlyMed = subtract(subtract(setM, setE), setH);
+            const onlyHard = subtract(subtract(setH, setE), setM);
+            const e_m = subtract(intersect(setE, setM), setH);
+            const m_h = subtract(intersect(setM, setH), setE);
+            
+            const data = [
+                { label: "Easy Unique", count: onlyEasy.size, color: "var(--success)" },
+                { label: "Medium Unique", count: onlyMed.size, color: "#f39c12" },
+                { label: "Hard Unique", count: onlyHard.size, color: "var(--danger)" },
+                { label: "Shared: Easy+Med", count: e_m.size, color: "#8e44ad" },
+                { label: "Shared: Med+Hard", count: m_h.size, color: "#2980b9" },
+                { label: "Shared: All 3", count: allThree.size, color: "#34495e" }
+            ];
+            const maxVal = Math.max(...data.map(d => d.count)) || 1;
+            let html = '';
+            data.forEach(d => {
+                const width = (d.count / maxVal * 100).toFixed(1) + '%';
+                html += `
+                <div class="overlap-row">
+                    <div class="overlap-label">${d.label}</div>
+                    <div class="overlap-bar-bg"><div class="overlap-bar" style="width:${width}; background:${d.color};"></div></div>
+                    <div class="overlap-count">${d.count}</div>
+                </div>`;
+            });
+            overlapContainer.innerHTML = html;
+            renderAttributes(stats, iterations);
+        }
+
+        function renderPoolStats() {
+            const counts = { trivia: 0, quote: 0, song: 0 };
+            quizData.forEach(q => {
+                if(counts[q.type] !== undefined) counts[q.type]++;
+                else counts['trivia']++;
+            });
+            const total = quizData.length;
+            const getPct = (c) => ((c/total)*100).toFixed(1);
+            let stops = [];
+            let current = 0;
+            const map = [
+                { type: 'trivia', label: 'Trivia', color: '#3498db', count: counts.trivia },
+                { type: 'quote', label: 'Quote', color: '#8e44ad', count: counts.quote },
+                { type: 'song', label: 'Song', color: '#e91e63', count: counts.song }
+            ];
+            map.forEach(item => {
+                const pct = (item.count / total) * 100;
+                stops.push(`${item.color} ${current}% ${current + pct}%`);
+                current += pct;
+            });
+            const gradient = `conic-gradient(${stops.join(', ')})`;
+            let html = `
+            <div class="pool-stats-container">
+                <div class="pie-wrapper"><div class="pie-chart" style="background: ${gradient}"></div></div>
+                <div class="legend-box">
+                    ${map.map(m => `
+                        <div class="legend-item">
+                            <div class="legend-label"><div class="legend-color" style="background:${m.color}"></div>${m.label}</div>
+                            <div class="legend-val">${m.count} <span style="font-weight:normal; color:#888; font-size:0.8em;">(${getPct(m.count)}%)</span></div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>`;
+            document.getElementById('pool-breakdown-container').innerHTML = html;
+        }
+
+        function renderAttributes(stats, iterations) {
+            const container = document.getElementById('attr-breakdown');
+            const diffs = ['easy', 'medium', 'hard'];
+            let html = '';
+            diffs.forEach(diff => {
+                let counts = { song: 0, quote: 0, trivia: 0 };
+                let totalAppearances = 0;
+                Object.keys(stats[diff]).forEach(qContent => {
+                    const freq = stats[diff][qContent];
+                    if(freq > 0) {
+                        const qObj = quizData.find(q => q.content === qContent);
+                        if(qObj) {
+                            counts[qObj.type] = (counts[qObj.type] || 0) + freq;
+                            totalAppearances += freq;
+                        }
+                    }
+                });
+                if(totalAppearances === 0) totalAppearances = 1;
+                const getPct = (type) => Math.round((counts[type] || 0) / totalAppearances * 100) + '%';
+                html += `
+                <div class="attr-col">
+                    <h4 style="text-transform:capitalize">${diff} Breakdown</h4>
+                    <div class="attr-box" style="border-left:3px solid var(--accent)"><span>Trivia</span><span>${getPct('trivia')}</span></div>
+                    <div class="attr-box" style="border-left:3px solid #8e44ad"><span>Quotes</span><span>${getPct('quote')}</span></div>
+                    <div class="attr-box" style="border-left:3px solid #e91e63"><span>Songs</span><span>${getPct('song')}</span></div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function updateFilteredChart(difficulty) {
+            if (!simulationStats) return;
+            const { stats, iterations, deckSize } = simulationStats;
+
+            const selectedTypes = [];
+            if (document.getElementById(`filter-${difficulty}-trivia`).checked) selectedTypes.push('trivia');
+            if (document.getElementById(`filter-${difficulty}-quote`).checked) selectedTypes.push('quote');
+            if (document.getElementById(`filter-${difficulty}-song`).checked) selectedTypes.push('song');
+            const isStacked = document.getElementById(`stacked-view-${difficulty}`).checked;
+
+            const container = document.getElementById('chart-' + difficulty);
+            if(selectedTypes.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding-top: 80px; color:#999;">Select a question type to display data.</div>';
+                return;
+            }
+
+            // Ideal Mean Calculation based on FILTERED pool
+            let availablePool = quizData.filter(q => selectedTypes.includes(q.type));
+            if (difficulty === 'easy') {
+                availablePool = availablePool.filter(q => q.difficulty !== 'hard');
+            }
+            const idealMean = availablePool.length > 0 ? (deckSize / availablePool.length) * iterations : 0;
+            
+            const freqMap = {};
+            const diffStats = stats[difficulty];
+
+            Object.keys(diffStats).forEach(key => {
+                const count = diffStats[key];
+                const qObj = quizData.find(q => q.content === key);
+                if (qObj && selectedTypes.includes(qObj.type)) {
+                    if (isStacked) {
+                        if (!freqMap[count]) freqMap[count] = { total: 0, trivia: 0, quote: 0, song: 0 };
+                        freqMap[count][qObj.type]++;
+                        freqMap[count].total++;
+                    } else {
+                        freqMap[count] = (freqMap[count] || 0) + 1;
+                    }
+                }
+            });
+            renderChart('chart-' + difficulty, freqMap, idealMean, isStacked);
+        }
+
+        function renderChart(containerId, freqMap, idealMean, isStacked = false) {
+            const container = document.getElementById(containerId);
+            const nonZeroFreqs = Object.keys(freqMap).map(Number).filter(f => f > 0);
+            const maxFreq = nonZeroFreqs.length ? Math.max(...nonZeroFreqs) : 0;
+            const numBuckets = 30;
+            const bucketSize = Math.max(1, Math.ceil(maxFreq / numBuckets));
+            
+            let buckets;
+            if (isStacked) {
+                buckets = Array.from({ length: numBuckets }, () => ({ total: 0, trivia: 0, quote: 0, song: 0 }));
+            } else {
+                buckets = new Array(numBuckets).fill(0);
+            }
+
+            nonZeroFreqs.forEach(f => {
+                const bIdx = Math.min(numBuckets - 1, Math.floor((f - 1) / bucketSize));
+                if (isStacked) {
+                    buckets[bIdx].total += freqMap[f].total;
+                    buckets[bIdx].trivia += freqMap[f].trivia;
+                    buckets[bIdx].quote += freqMap[f].quote;
+                    buckets[bIdx].song += freqMap[f].song;
+                } else {
+                    buckets[bIdx] += freqMap[f];
+                }
+            });
+            
+            const maxVal = Math.max(...buckets.map(b => isStacked ? b.total : b)) || 1;
+
+            let idealLeftPct = 0;
+            if (idealMean > 0) {
+                idealLeftPct = (idealMean / (bucketSize * numBuckets)) * 100;
+                idealLeftPct = (idealLeftPct * 0.95);
+                if (idealLeftPct > 100) idealLeftPct = 100;
+            }
+
+            let legendHtml = isStacked ? `
+                <span style="color:#3498db">■ Trivia</span> | <span style="color:#8e44ad">■ Quote</span> | <span style="color:#e91e63">■ Song</span>
+            ` : `
+                (<span style="color:var(--accent)">Under-rep</span> | <span style="color:var(--success)">Over-rep</span>)
+            `;
+            let html = `<div class="chart-label">Freq Dist. ${legendHtml}
+                <span style="color:#e74c3c; margin-left: 10px;">--- Ideal (${Math.round(idealMean)})</span>
+            </div>`;
+
+            if (idealMean > 0) {
+                html += `<div class="ideal-line" style="left:${idealLeftPct}%; top: 25px; height: calc(100% - 55px); border-left: 2px dashed #e74c3c; border-top:none;">
+                    <div class="ideal-label" style="left:5px; top: 0px; background: rgba(255,255,255,0.9);">Target</div>
+                </div>`;
+            }
+            
+            buckets.forEach((val, i) => {
+                const start = (i * bucketSize) + 1;
+                const end = (i + 1) * bucketSize;
+                const label = start === end ? `${start} times` : `${start}-${end} times`;
+                
+                if (isStacked) {
+                    const height = maxVal > 0 ? (val.total / maxVal * 80) + '%' : '0%';
+                    const triviaPct = val.total > 0 ? (val.trivia / val.total * 100) : 0;
+                    const quotePct = val.total > 0 ? (val.quote / val.total * 100) : 0;
+                    const songPct = val.total > 0 ? (val.song / val.total * 100) : 0;
+                    const tooltip = `${label}: ${val.total} Qs (T:${val.trivia} Q:${val.quote} S:${val.song})`;
+                    html += `<div class="chart-bar" style="height:${height}; background:transparent; width:${95/numBuckets}%" data-val="${tooltip}">
+                        <div style="height:${songPct}%; background:#e91e63"></div>
+                        <div style="height:${quotePct}%; background:#8e44ad"></div>
+                        <div style="height:${triviaPct}%; background:#3498db"></div>
+                    </div>`;
+                } else {
+                    const height = maxVal > 0 ? (val / maxVal * 80) + '%' : '0%';
+                    const isHot = start > idealMean * 1.5;
+                    const bg = isHot ? 'var(--success)' : 'var(--accent)';
+                    const tooltip = `${label}: ${val} Qs`;
+                    html += `<div class="chart-bar" style="height:${height}; background:${bg}; width:${95/numBuckets}%" data-val="${tooltip}"></div>`;
+                }
+            });
+            container.innerHTML = html;
+        }
+
+        function updateColdStorage() {
+            if(!simulationStats) return;
+            const threshold = parseInt(els.ghostThresh.value);
+            const { stats, iterations } = simulationStats;
+            const container = document.getElementById('table-ghosts');
+            const selectedDiffs = [];
+            if(document.getElementById('ghost-diff-easy').checked) selectedDiffs.push('easy');
+            if(document.getElementById('ghost-diff-medium').checked) selectedDiffs.push('medium');
+            if(document.getElementById('ghost-diff-hard').checked) selectedDiffs.push('hard');
+
+            if(selectedDiffs.length === 0) {
+                container.innerHTML = `<div style="text-align:center; padding:20px; color:#c0392b;">Please select at least one difficulty to analyze.</div>`;
+                return;
+            }
+            const totalSims = iterations * selectedDiffs.length; 
+            let coldItems = [];
+            quizData.forEach(q => {
+                let total = 0;
+                selectedDiffs.forEach(diff => {
+                    total += (stats[diff][q.content] || 0);
+                });
+                if(total <= threshold) {
+                    const pct = totalSims > 0 ? ((total / totalSims) * 100).toFixed(2) : 0;
+                    coldItems.push({ ...q, total, pct });
+                }
+            });
+            coldItems.sort((a,b) => a.total - b.total);
+
+            if(coldItems.length === 0) {
+                container.innerHTML = `<div style="text-align:center; padding:20px; color:green;">🎉 No items found below threshold ${threshold} for the selected difficulties!</div>`;
+                return;
+            }
+            let html = `<h3>${coldItems.length} items appearing ${threshold} times or less (in selected difficulties)</h3>
+                        <table><thead><tr><th>Count (Sel.)</th><th>Chance (Sel.)</th><th>Type</th><th>Question</th><th>Answer</th></tr></thead><tbody>`;
+            coldItems.forEach(row => {
+                html += `<tr>
+                    <td style="font-weight:bold; color:${row.total===0?'red':'orange'}">${row.total}</td>
+                    <td style="color:#666;">${row.pct}%</td>
+                    <td><span class="tag ${row.type}">${row.type}</span></td>
+                    <td>${row.content}</td>
+                    <td>${row.answer}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // --- EXPORT LOGIC (UPDATED v9) ---
+        function handleLogicJson(file) {
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const config = JSON.parse(e.target.result);
+                    // Validation: Check for a specific key
+                    if(config.ratioEasy === undefined) throw new Error("Missing Logic Keys");
+            
+                    applyConfigToInputs(config); // Helper function to set values
+                    alert("Logic Configuration Loaded!");
+                } catch(err) { 
+                    alert("Invalid Logic Configuration file."); 
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function exportLogicJson() {
+            const cfg = getConfig(); // Your existing function that reads inputs
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cfg, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "logic_config.json");
+            document.body.appendChild(downloadAnchorNode); // required for firefox
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        // Helper to map JSON back to Inputs
+        function applyConfigToInputs(importedConfig) {
+            // Map Config Keys to Input IDs
+            const mapping = {
+                ratioEasy: 'w-ratio-easy', ratioMed: 'w-ratio-med', ratioHard: 'w-ratio-hard', wildcard: 'w-wildcard',
+                base: 'w-base', varEasy: 'w-var-easy', varMed: 'w-var-med', varHard: 'w-var-hard',
+                easySong: 'w-easy-song', easyTag: 'w-easy-tag', easyLenDiv: 'w-easy-len-div', easyLenCap: 'w-easy-len-cap',
+                easyFreqMult: 'w-easy-freq-mult', easyFreqCap: 'w-easy-freq-cap',
+                hardSong: 'w-hard-song', hardTag: 'w-hard-tag', hardEasyPen: 'w-hard-easy-pen',
+                hardLenThresh: 'w-hard-len-thresh', hardLenDiv: 'w-hard-len-div',
+                hardFreqThresh: 'w-hard-freq-thresh', hardFreqMult: 'w-hard-freq-mult', medTag: 'w-med-tag'
+            };
+
+            for (const [key, elementId] of Object.entries(mapping)) {
+                if (importedConfig[key] !== undefined) {
+                    const el = document.getElementById(elementId);
+                    if(el) el.value = importedConfig[key];
+                }
+            }
+            weightsModified = true;
+            updateRunButton();
+        }
+
+        // --- UTILS ---
+        function resetDefaults() {
+            const def = {
+                'w-ratio-easy': 0.15, 'w-ratio-med': 0.3, 'w-ratio-hard': 0.5, 'w-wildcard': 0.1,
+                'w-base': 50, 'w-var-easy': 50, 'w-var-med': 80, 'w-var-hard': 500,
+                'w-easy-song': 40, 'w-easy-tag': 100, 'w-easy-len-div': 4, 'w-easy-len-cap': 25,
+                'w-easy-freq-mult': 3, 'w-easy-freq-cap': 30, 'w-hard-song': -30, 'w-hard-tag': 100,
+                'w-hard-easy-pen': -30, 'w-hard-len-thresh': 60, 'w-hard-len-div': 2, 'w-hard-freq-thresh': 4,
+                'w-hard-freq-mult': 5, 'w-med-tag': 20
+            };
+            for(let [id, val] of Object.entries(def)) { document.getElementById(id).value = val; }
+            weightsModified = true; updateRunButton();
+        }
+
+        function switchTab(id) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            const tabs = document.querySelectorAll('.tab');
+            for(let t of tabs) { if(t.getAttribute('onclick').includes(id)) t.classList.add('active'); }
+            document.getElementById('content-'+id).classList.add('active');
+        }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    </script>
+
+
+</body>
+</html>
